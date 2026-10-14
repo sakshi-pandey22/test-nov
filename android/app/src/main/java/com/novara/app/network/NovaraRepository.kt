@@ -134,4 +134,17 @@ class NovaraRepository(
             Result.success(MockDataProvider.readinessPayloads["high"]!!)
         }
     }
+
+    suspend fun testRepair(learnerUtterance: String, expectedPattern: String): Result<StandaloneRepairResponse> {
+        return try {
+            val response = api.testRepair(StandaloneRepairRequest(learnerUtterance, expectedPattern))
+            if (response.isSuccessful && response.body() != null) {
+                Result.success(response.body()!!)
+            } else {
+                Result.failure(Exception("HTTP ${response.code()}: ${response.errorBody()?.string()}"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

@@ -7,14 +7,13 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -25,14 +24,6 @@ import com.novara.app.network.NovaraRepository
 import com.novara.app.ui.theme.*
 import kotlinx.coroutines.launch
 
-/**
- * Task 5: Conversation/Chat Screen
- * Features:
- * - LazyColumn chat stream
- * - Inline repair bubble with error_type and strategy
- * - Turn counter (1..10+ manual test)
- * - Accent score indicator
- */
 @Composable
 fun ConversationScreen(
     learnerId: String,
@@ -54,12 +45,8 @@ fun ConversationScreen(
     var inputText by remember { mutableStateOf("") }
     var turnNumber by remember { mutableIntStateOf(0) }
     var isSending by remember { mutableStateOf(false) }
-    var isMockMode by remember { mutableStateOf(repository.isMockMode) }
-    // Non-null exactly when the last send attempt failed - holds the EXACT
-    // text/turn that failed so Retry resends the same turn instead of
-    // treating it as a new message (which would duplicate the user's bubble
-    // and advance turnNumber past what the backend may have already seen).
     var failedSend by remember { mutableStateOf<Pair<String, Int>?>(null) }
+    var sendStartTime by remember { mutableLongStateOf(0L) }
 
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -67,13 +54,15 @@ fun ConversationScreen(
     fun performSend(text: String, turn: Int) {
         isSending = true
         failedSend = null
+        val start = System.currentTimeMillis()
 
         scope.launch {
             val responseResult = repository.sendMessage(
                 learnerId = learnerId,
                 scenarioId = scenario.scenarioId,
                 message = text,
-                turnNumber = turn
+                turnNumber = turn,
+                responseTimeMs = if (sendStartTime > 0) System.currentTimeMillis() - sendStartTime else null
             )
 
             isSending = false
@@ -87,7 +76,7 @@ fun ConversationScreen(
                     )
                 )
 
-                // Add inline repair if triggered (Task 5 core requirement)
+                // Inline Repair Trigger (Task 5 requirement)
                 if (resp.repairTriggered && resp.repair != null) {
                     messages.add(
                         ChatMessage(
@@ -100,9 +89,6 @@ fun ConversationScreen(
                     )
                 }
             }.onFailure {
-                // Surface the failure instead of silently dropping the
-                // reply - the user's own message bubble (added before this
-                // call) stays visible, with a retry affordance below it.
                 failedSend = text to turn
             }
 
@@ -115,95 +101,71 @@ fun ConversationScreen(
         if (text.isBlank() || isSending) return
 
         inputText = ""
-
         val newTurn = turnNumber + 1
         turnNumber = newTurn
 
-        // Calculate simple organic accent score based on diacritics
-        val hasAccents = text.any { it in "áéíóúÁÉÍÓÚñÑ" }
-        val accentScore = if (hasAccents) 92 else 84
-
-        // Add user turn
         messages.add(
             ChatMessage(
                 id = "u_$newTurn",
                 role = MessageRole.USER,
-                text = text,
-                accentScore = accentScore
+                text = text
             )
         )
 
         performSend(text, newTurn)
     }
 
-    fun retryLastSend() {
-        val (text, turn) = failedSend ?: return
-        // Re-sends the exact same text/turn - does not touch `messages` or
-        // `turnNumber`, so nothing is duplicated on the Android side. The
-        // backend itself has no idempotency guard on turn_number (see
-        // docs/challenges.md discussion), so a retry after a failure where
-        // the backend actually processed the request but the response was
-        // lost in transit can still double-count server-side; this is a
-        // known, reported limitation, not something this UI-level fix can
-        // close on its own.
-        performSend(text, turn)
-    }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(BgPrimary)
+            .background(BgIvory)
     ) {
-        // Header
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(BgSurface)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        // Institutional Header Bar
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = BgSurface,
+            shadowElevation = 1.dp
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onNavigateBack) {
-                    Text("← Back", color = TextSecondary, fontSize = 13.sp)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = onNavigateBack, contentPadding = PaddingValues(0.dp)) {
+                        Text("← Scenarios", color = AcademicNavy, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = scenario.title,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary,
+                            maxLines = 1
+                        )
+                        Text(
+                            text = "Turn $turnNumber · POST /conversation",
+                            fontSize = 10.sp,
+                            color = TextMuted
+                        )
+                    }
                 }
-                Spacer(modifier = Modifier.width(6.dp))
-                Column {
-                    Text(scenario.title, fontWeight = FontWeight.Bold, color = TextPrimary, fontSize = 14.sp)
-                    Text("Turn $turnNumber · ${scenario.setting}", color = TextMuted, fontSize = 11.sp)
-                }
-            }
 
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                // Mock toggle
-                Box(
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .background(if (isMockMode) AccentEmerald.copy(alpha = 0.2f) else BgElevated)
-                        .border(1.dp, if (isMockMode) AccentEmerald else BorderColor, CircleShape)
-                        .clickable {
-                            isMockMode = !isMockMode
-                            repository.isMockMode = isMockMode
-                        }
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text(if (isMockMode) "⚡ MOCK" else "🟢 LIVE", fontSize = 10.sp, color = if (isMockMode) AccentEmerald else TextSecondary)
-                }
-
-                // Readiness button
                 Button(
                     onClick = onNavigateToReadiness,
-                    enabled = turnNumber >= 1,
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentEmerald),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                    shape = RoundedCornerShape(16.dp)
+                    shape = RoundedCornerShape(4.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = AcademicSage),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
                 ) {
-                    Text("Score 📊", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("Readiness 📊", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
 
-        // Messages List
+        // Messages Thread
         LazyColumn(
             state = listState,
             modifier = Modifier
@@ -218,128 +180,91 @@ fun ConversationScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalAlignment = Alignment.End
                         ) {
+                            Text("YOU (LEARNER)", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                            Spacer(modifier = Modifier.height(2.dp))
                             Box(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .background(AccentEmerald)
-                                    .padding(horizontal = 16.dp, vertical = 10.dp)
+                                    .fillMaxWidth(0.85f)
+                                    .background(AcademicNavy, RoundedCornerShape(4.dp))
+                                    .padding(horizontal = 14.dp, vertical = 10.dp)
                             ) {
-                                Text(msg.text, color = Color.White, fontSize = 14.sp)
-                            }
-                            if (msg.accentScore != null) {
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "Accent: ${msg.accentScore}% · Pure Vowels",
-                                    fontSize = 10.sp,
-                                    color = AccentCyan
-                                )
+                                Text(msg.text, color = TextInverted, fontSize = 13.sp, lineHeight = 18.sp)
                             }
                         }
                     }
+
                     MessageRole.ASSISTANT -> {
                         Column(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalAlignment = Alignment.Start
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .background(BgSurface)
-                                    .border(1.dp, BorderColor, RoundedCornerShape(16.dp))
-                                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                            Text("AI CONVERSATION PARTNER", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = AcademicNavy)
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Card(
+                                modifier = Modifier.fillMaxWidth(0.92f),
+                                shape = RoundedCornerShape(4.dp),
+                                colors = CardDefaults.cardColors(containerColor = BgSurface),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, BgCardBorder)
                             ) {
-                                Column {
-                                    Row(verticalAlignment = Alignment.Top) {
-                                        Text("🇪🇸 ", fontSize = 14.sp)
-                                        Text(msg.text, color = TextPrimary, fontSize = 14.sp, modifier = Modifier.weight(1f))
-                                        Text(" 🔊", fontSize = 13.sp, color = AccentCyan)
-                                    }
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    // English Subtitle Placeholder Box
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(BgElevated.copy(alpha = 0.7f))
-                                            .border(1.dp, AccentCyan.copy(alpha = 0.25f), RoundedCornerShape(8.dp))
-                                            .padding(horizontal = 10.dp, vertical = 6.dp)
-                                    ) {
-                                        Column {
-                                            Text(
-                                                "🇬🇧 ENGLISH MEANING:",
-                                                fontSize = 9.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = AccentCyan
-                                            )
-                                            Spacer(modifier = Modifier.height(2.dp))
-                                            Text(
-                                                msg.translation ?: getEnglishTranslation(msg.text),
-                                                fontSize = 12.sp,
-                                                color = TextSecondary
-                                            )
-                                        }
-                                    }
+                                Column(modifier = Modifier.padding(14.dp)) {
+                                    Text(
+                                        text = msg.text,
+                                        color = TextPrimary,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        lineHeight = 20.sp
+                                    )
                                 }
                             }
                         }
                     }
+
                     MessageRole.REPAIR -> {
-                        // Task 5 Deliverable: Inline Repair Bubble with English explanation
+                        // Task 5 Core Deliverable: Academic Inline Repair Card
                         Card(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(containerColor = AccentGold.copy(alpha = 0.12f)),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, AccentGold.copy(alpha = 0.5f))
+                            shape = RoundedCornerShape(4.dp),
+                            colors = CardDefaults.cardColors(containerColor = AcademicAmberBg),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, AcademicAmber)
                         ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
+                            Column(modifier = Modifier.padding(14.dp)) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        "⚡ INLINE CORRECTION: ${msg.errorType?.uppercase()}",
+                                        text = "⚡ REPAIR ENGINE: ${(msg.errorType ?: "DIAGNOSTIC").uppercase()}",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = AccentGold
+                                        color = AcademicAmber,
+                                        letterSpacing = 0.5.sp
                                     )
-                                    Text(
-                                        "Strategy: ${msg.strategy}",
-                                        fontSize = 10.sp,
-                                        color = TextSecondary
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    msg.text,
-                                    color = TextPrimary,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                                Spacer(modifier = Modifier.height(6.dp))
-                                // English Translation Box for Repair
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(BgElevated.copy(alpha = 0.7f))
-                                        .border(1.dp, AccentGold.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
-                                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                                ) {
-                                    Column {
+                                    Box(
+                                        modifier = Modifier
+                                            .border(1.dp, AcademicAmber, RoundedCornerShape(2.dp))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
                                         Text(
-                                            "🇬🇧 EXPLANATION:",
+                                            text = "STRATEGY: ${(msg.strategy ?: "HINT").uppercase()}",
                                             fontSize = 9.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = AccentGold
-                                        )
-                                        Spacer(modifier = Modifier.height(2.dp))
-                                        Text(
-                                            msg.translation ?: getEnglishTranslation(msg.text),
-                                            fontSize = 12.sp,
-                                            color = TextSecondary
+                                            color = AcademicAmber
                                         )
                                     }
                                 }
+
+                                Spacer(modifier = Modifier.height(6.dp))
+                                HorizontalDivider(color = AcademicAmber.copy(alpha = 0.3f), thickness = 1.dp)
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Text(
+                                    text = msg.text,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = TextPrimary,
+                                    lineHeight = 18.sp
+                                )
                             }
                         }
                     }
@@ -349,88 +274,77 @@ fun ConversationScreen(
 
             if (isSending) {
                 item {
-                    Text("AI is typing…", color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(8.dp))
+                    Text("AI Partner is responding…", color = TextMuted, fontSize = 11.sp, modifier = Modifier.padding(8.dp))
                 }
             }
         }
 
+        // Retry notification if network failed
         if (failedSend != null) {
-            // Visible failure + retry, replacing the old behavior of
-            // silently dropping the reply on error.
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(BgElevated)
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                    .background(ErrorRedBg)
+                    .border(1.dp, ErrorRed, RoundedCornerShape(0.dp))
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("⚠ Message didn't send", fontSize = 12.sp, color = TextSecondary)
-                TextButton(onClick = { retryLastSend() }, enabled = !isSending) {
-                    Text("Retry", color = AccentEmerald, fontSize = 12.sp)
+                Text("Connection error sending message", fontSize = 11.sp, color = ErrorRed)
+                TextButton(
+                    onClick = {
+                        val (text, turn) = failedSend!!
+                        performSend(text, turn)
+                    },
+                    contentPadding = PaddingValues(0.dp)
+                ) {
+                    Text("Retry", color = ErrorRed, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                 }
             }
         }
 
-        // Input Bar
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(BgSurface)
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
+        // Bottom Input Bar
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = BgSurface,
+            shadowElevation = 4.dp
         ) {
-            OutlinedTextField(
-                value = inputText,
-                onValueChange = { inputText = it },
-                placeholder = { Text("Escribe en español o inglés…", color = TextMuted, fontSize = 13.sp) },
-                modifier = Modifier.weight(1f),
-                singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = AccentEmerald,
-                    unfocusedBorderColor = BorderColor,
-                    focusedTextColor = TextPrimary,
-                    unfocusedTextColor = TextPrimary,
-                    focusedContainerColor = BgElevated,
-                    unfocusedContainerColor = BgElevated
-                )
-            )
-
-            Spacer(modifier = Modifier.width(8.dp))
-
-            Button(
-                onClick = { sendMessage() },
-                enabled = inputText.isNotBlank() && !isSending,
-                colors = ButtonDefaults.buttonColors(containerColor = AccentEmerald),
-                shape = CircleShape,
-                modifier = Modifier.size(48.dp),
-                contentPadding = PaddingValues(0.dp)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("➤", color = Color.White, fontSize = 16.sp)
+                OutlinedTextField(
+                    value = inputText,
+                    onValueChange = {
+                        if (sendStartTime == 0L && it.isNotBlank()) {
+                            sendStartTime = System.currentTimeMillis()
+                        }
+                        inputText = it
+                    },
+                    placeholder = { Text("Escribe en español...", fontSize = 13.sp) },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(4.dp),
+                    maxLines = 3,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = AcademicNavy,
+                        unfocusedBorderColor = BgCardBorder
+                    )
+                )
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                Button(
+                    onClick = { sendMessage() },
+                    shape = RoundedCornerShape(4.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = AcademicNavy),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
+                    enabled = inputText.isNotBlank() && !isSending
+                ) {
+                    Text("Send", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
             }
         }
     }
 }
-
-/**
- * Intelligent Spanish to English translation helper for native English speakers
- */
-private fun getEnglishTranslation(text: String): String {
-    val clean = text.lowercase().trim()
-    return when {
-        clean.contains("buenos") || clean.contains("hola") -> "Hello! Welcome to Novara. Let's practice Spanish with native pronunciation."
-        clean.contains("qué le pongo") || clean.contains("pongo de beber") -> "What can I get you to drink?"
-        clean.contains("caña") && clean.contains("tapa") -> "Each draft beer comes with a free house tapa."
-        clean.contains("para aquí") || clean.contains("llevar") -> "For here or to go (takeaway)?"
-        clean.contains("tortilla") && clean.contains("cebolla") -> "One portion of Spanish omelette! Do you prefer it with or without onion?"
-        clean.contains("cuenta") -> "I'll bring the bill right away. Will you pay with card or cash?"
-        clean.contains("tarjeta") || clean.contains("efectivo") -> "We accept contactless cards without problem. Pay at the register anytime."
-        clean.contains("euros") -> "Stating the price in euros."
-        clean.contains("repetir") -> "Could you please repeat that?"
-        clean.contains("para llevar") -> "You say 'para llevar' (to take away), not 'para llevo'."
-        clean.contains("contrato") || clean.contains("identidad") -> "Did you bring your rental contract and identity document?"
-        clean.contains("viaje") -> "Tell me about a recent trip and what surprised you most."
-        else -> "English meaning: $text"
-    }
-}
-

@@ -24,6 +24,9 @@ interface NovaraApiService {
     @POST("/conversation")
     suspend fun sendMessage(@Body request: ConversationRequest): Response<ConversationResponse>
 
+    @POST("/repair")
+    suspend fun testRepair(@Body request: StandaloneRepairRequest): Response<StandaloneRepairResponse>
+
     @GET("/readiness")
     suspend fun getReadiness(@Query("learner_id") learnerId: String): Response<ReadinessResponse>
 

@@ -5,8 +5,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -14,46 +14,44 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.novara.app.model.LearnerProfile
 import com.novara.app.ui.theme.*
 import kotlinx.coroutines.launch
 
-val LEVELS = listOf(
-    "A1" to "Beginner",
-    "A2" to "Elementary",
-    "B1" to "Intermediate",
-    "B2" to "Upper Intermediate"
+val CEFR_LEVELS = listOf(
+    "A1" to "A1 · Beginner",
+    "A2" to "A2 · Elementary",
+    "B1" to "B1 · Intermediate",
+    "B2" to "B2 · Upper Intermediate"
 )
 
-val PURPOSES = listOf(
-    "trip" to "✈️ Travel & Trip",
-    "casual" to "💬 Social & Casual",
-    "exam" to "🎓 DELE Exam",
-    "relocation" to "🏡 Relocation"
+// Supported live backend purposes (Ankit's contract: MVP supports Trip & Casual)
+val LIVE_PURPOSES = listOf(
+    "trip" to "✈️ Travel & Trip (Transactional, Airport/Café, Speed-weighted)",
+    "casual" to "💬 Social & Casual (Register, Friendship, Engagement-weighted)"
 )
 
-val ALL_INTERESTS = listOf("food", "travel", "culture", "music", "history", "art", "sports", "technology")
-val ALL_WEAK_AREAS = listOf("pronunciation", "listening", "speaking", "grammar", "vocabulary")
+val CURATED_INTERESTS = listOf("food", "travel", "culture", "music", "history", "art", "sports", "technology")
+val CURATED_WEAK_AREAS = listOf("listening", "speaking", "pronunciation", "grammar", "vocabulary")
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun IntakeScreen(
-    // Returns true on success (caller navigates onward) or false on
-    // failure (stays on this screen, caller does NOT navigate) - replaces
-    // the previous fire-and-forget Unit callback, which let navigation to
-    // "scenario" proceed even when /profile creation failed.
     onProfileCreated: suspend (LearnerProfile) -> Boolean,
     onNavigateBack: () -> Unit
 ) {
+    // Ankit's backend explicitly mandates using sakshi_test_1 instead of u1
+    var learnerId by remember { mutableStateOf("sakshi_test_1") }
     var selectedLevel by remember { mutableStateOf("B1") }
     var selectedPurpose by remember { mutableStateOf("trip") }
     var region by remember { mutableStateOf("Madrid") }
-    var nativeLanguage by remember { mutableStateOf("English") }
     val selectedInterests = remember { mutableStateListOf("food", "travel") }
-    val selectedWeakAreas = remember { mutableStateListOf("pronunciation", "listening") }
+    val selectedWeakAreas = remember { mutableStateListOf("listening") }
 
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
@@ -63,237 +61,381 @@ fun IntakeScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(BgPrimary)
-            .padding(horizontal = 20.dp, vertical = 24.dp)
+            .background(BgIvory)
+            .padding(horizontal = 24.dp, vertical = 20.dp)
             .verticalScroll(scrollState)
     ) {
-        // Header
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(
-                text = "NOVARA INTAKE",
-                fontSize = 12.sp,
-                color = AccentEmerald,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 2.sp
-            )
-        }
+        // Institutional Header
+        Text(
+            text = "NOVARA / INTAKE & REGISTRATION",
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = AcademicNavy,
+            letterSpacing = 1.5.sp
+        )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(4.dp))
 
         Text(
-            text = "Create Learner Profile",
+            text = "Learner Registration",
             fontSize = 24.sp,
+            fontFamily = FontFamily.Serif,
             fontWeight = FontWeight.Bold,
             color = TextPrimary
         )
 
         Text(
-            text = "Task 2: 100% Contract Validated Intake",
-            fontSize = 13.sp,
+            text = "POST /profile · Configures pipeline and seeds the Learner Profile",
+            fontSize = 12.sp,
             color = TextSecondary
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
-        // 1. Spanish Level Selection
-        Text("1. Spanish Proficiency Level", color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            LEVELS.forEach { (lvl, desc) ->
-                val isSelected = selectedLevel == lvl
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(if (isSelected) AccentEmerald.copy(alpha = 0.2f) else BgSurface)
-                        .border(1.dp, if (isSelected) AccentEmerald else BorderColor, RoundedCornerShape(12.dp))
-                        .clickable { selectedLevel = lvl }
-                        .padding(vertical = 12.dp, horizontal = 6.dp),
-                    contentAlignment = Alignment.Center
+        // 1. Learner Identifier (Mandated requirement)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(4.dp),
+            colors = CardDefaults.cardColors(containerColor = BgSurface),
+            border = androidx.compose.foundation.BorderStroke(1.dp, BgCardBorder)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "1. LEARNER IDENTIFIER",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = AcademicNavy,
+                    letterSpacing = 1.sp
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                OutlinedTextField(
+                    value = learnerId,
+                    onValueChange = { learnerId = it },
+                    label = { Text("learner_id") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(4.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = AcademicNavy,
+                        unfocusedBorderColor = BgCardBorder,
+                        focusedLabelColor = AcademicNavy
+                    )
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "Note: Set to 'sakshi_test_1'. Do not reuse 'u1' to avoid skewed backend test history.",
+                    fontSize = 11.sp,
+                    color = AcademicAmber,
+                    lineHeight = 15.sp
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 2. Target Proficiency Level (CEFR)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(4.dp),
+            colors = CardDefaults.cardColors(containerColor = BgSurface),
+            border = androidx.compose.foundation.BorderStroke(1.dp, BgCardBorder)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "2. TARGET PROFICIENCY (CEFR LEVEL)",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = AcademicNavy,
+                    letterSpacing = 1.sp
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CEFR_LEVELS.forEach { (lvl, desc) ->
+                        val isSelected = selectedLevel == lvl
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .border(
+                                    width = if (isSelected) 1.5.dp else 1.dp,
+                                    color = if (isSelected) AcademicNavy else BgCardBorder,
+                                    shape = RoundedCornerShape(4.dp)
+                                )
+                                .background(if (isSelected) BgSubtle else BgSurface)
+                                .clickable { selectedLevel = lvl }
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = desc,
+                                fontSize = 13.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isSelected) AcademicNavy else TextPrimary
+                            )
+                            if (isSelected) {
+                                Text("SELECTED", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = AcademicNavy)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 3. Region of Immersion
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(4.dp),
+            colors = CardDefaults.cardColors(containerColor = BgSurface),
+            border = androidx.compose.foundation.BorderStroke(1.dp, BgCardBorder)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "3. TARGET REGION / VARIANT",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = AcademicNavy,
+                    letterSpacing = 1.sp
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                OutlinedTextField(
+                    value = region,
+                    onValueChange = { region = it },
+                    label = { Text("region (e.g. Madrid, Barcelona)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(4.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = AcademicNavy,
+                        unfocusedBorderColor = BgCardBorder,
+                        focusedLabelColor = AcademicNavy
+                    )
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 4. Learning Purpose (Hard Branch)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(4.dp),
+            colors = CardDefaults.cardColors(containerColor = BgSurface),
+            border = androidx.compose.foundation.BorderStroke(1.dp, BgCardBorder)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "4. LEARNING PURPOSE (HARD PIPELINE BRANCH)",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = AcademicNavy,
+                    letterSpacing = 1.sp
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    LIVE_PURPOSES.forEach { (purp, desc) ->
+                        val isSelected = selectedPurpose == purp
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .border(
+                                    width = if (isSelected) 1.5.dp else 1.dp,
+                                    color = if (isSelected) AcademicNavy else BgCardBorder,
+                                    shape = RoundedCornerShape(4.dp)
+                                )
+                                .background(if (isSelected) BgSubtle else BgSurface)
+                                .clickable { selectedPurpose = purp }
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = desc,
+                                fontSize = 12.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isSelected) AcademicNavy else TextPrimary,
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (isSelected) {
+                                Text("✔", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AcademicNavy)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 5. Personal Interests
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(4.dp),
+            colors = CardDefaults.cardColors(containerColor = BgSurface),
+            border = androidx.compose.foundation.BorderStroke(1.dp, BgCardBorder)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "5. INTEREST TAGS (KNOWLEDGE GRAPH FILTER)",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = AcademicNavy,
+                    letterSpacing = 1.sp
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(lvl, fontWeight = FontWeight.Bold, color = if (isSelected) AccentEmerald else TextPrimary, fontSize = 16.sp)
-                        Text(desc, fontSize = 9.sp, color = TextMuted)
+                    CURATED_INTERESTS.forEach { tag ->
+                        val isSelected = selectedInterests.contains(tag)
+                        Box(
+                            modifier = Modifier
+                                .border(1.dp, if (isSelected) AcademicNavy else BgCardBorder, RoundedCornerShape(4.dp))
+                                .background(if (isSelected) AcademicNavy else BgSurface)
+                                .clickable {
+                                    if (isSelected) selectedInterests.remove(tag) else selectedInterests.add(tag)
+                                }
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = tag,
+                                fontSize = 12.sp,
+                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                color = if (isSelected) TextInverted else TextPrimary
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 6. Known Weak Areas
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(4.dp),
+            colors = CardDefaults.cardColors(containerColor = BgSurface),
+            border = androidx.compose.foundation.BorderStroke(1.dp, BgCardBorder)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "6. INITIAL WEAKNESS FOCUS",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = AcademicNavy,
+                    letterSpacing = 1.sp
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    CURATED_WEAK_AREAS.forEach { weak ->
+                        val isSelected = selectedWeakAreas.contains(weak)
+                        Box(
+                            modifier = Modifier
+                                .border(1.dp, if (isSelected) AcademicAmber else BgCardBorder, RoundedCornerShape(4.dp))
+                                .background(if (isSelected) AcademicAmberBg else BgSurface)
+                                .clickable {
+                                    if (isSelected) selectedWeakAreas.remove(weak) else selectedWeakAreas.add(weak)
+                                }
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = weak,
+                                fontSize = 12.sp,
+                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                color = if (isSelected) AcademicAmber else TextPrimary
+                            )
+                        }
                     }
                 }
             }
         }
 
         Spacer(modifier = Modifier.height(20.dp))
-
-        // 2. Purpose Selection (4 purposes: Trip, Casual, Exam, Relocation)
-        Text("2. Immersion Purpose (4 Situations)", color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-        Spacer(modifier = Modifier.height(8.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            PURPOSES.forEach { (purp, label) ->
-                val isSelected = selectedPurpose == purp
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(if (isSelected) AccentEmerald.copy(alpha = 0.15f) else BgSurface)
-                        .border(1.dp, if (isSelected) AccentEmerald else BorderColor, RoundedCornerShape(12.dp))
-                        .clickable { selectedPurpose = purp }
-                        .padding(14.dp)
-                ) {
-                    Text(label, color = if (isSelected) TextPrimary else TextSecondary, fontWeight = FontWeight.Medium, fontSize = 14.sp)
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // 3. Region / City
-        Text("3. Target City or Region", color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(
-            value = region,
-            onValueChange = { region = it },
-            placeholder = { Text("e.g. Madrid, Barcelona, Mexico City") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = AccentEmerald,
-                unfocusedBorderColor = BorderColor,
-                focusedTextColor = TextPrimary,
-                unfocusedTextColor = TextPrimary,
-                focusedContainerColor = BgSurface,
-                unfocusedContainerColor = BgSurface
-            )
-        )
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // 4. Interests (Chips)
-        Text("4. Topics & Interests", color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-        Spacer(modifier = Modifier.height(8.dp))
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            ALL_INTERESTS.forEach { interest ->
-                val isSelected = selectedInterests.contains(interest)
-                Box(
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .background(if (isSelected) AccentEmerald.copy(alpha = 0.2f) else BgSurface)
-                        .border(1.dp, if (isSelected) AccentEmerald else BorderColor, CircleShape)
-                        .clickable {
-                            if (isSelected) selectedInterests.remove(interest) else selectedInterests.add(interest)
-                        }
-                        .padding(horizontal = 14.dp, vertical = 8.dp)
-                ) {
-                    Text(interest, fontSize = 13.sp, color = if (isSelected) Color.White else TextSecondary)
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // 5. Weak Areas (Chips)
-        Text("5. Weak Areas & Speech Focus", color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-        Spacer(modifier = Modifier.height(8.dp))
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            ALL_WEAK_AREAS.forEach { weak ->
-                val isSelected = selectedWeakAreas.contains(weak)
-                Box(
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .background(if (isSelected) AccentGold.copy(alpha = 0.2f) else BgSurface)
-                        .border(1.dp, if (isSelected) AccentGold else BorderColor, CircleShape)
-                        .clickable {
-                            if (isSelected) selectedWeakAreas.remove(weak) else selectedWeakAreas.add(weak)
-                        }
-                        .padding(horizontal = 14.dp, vertical = 8.dp)
-                ) {
-                    Text(
-                        if (weak == "pronunciation") "🔊 pronunciation" else weak,
-                        fontSize = 13.sp,
-                        color = if (isSelected) AccentGold else TextSecondary
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
 
         // Error Banner
         if (errorMessage != null) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(ErrorColor.copy(alpha = 0.15f))
-                    .border(1.dp, ErrorColor, RoundedCornerShape(8.dp))
+                    .background(ErrorRedBg)
+                    .border(1.dp, ErrorRed, RoundedCornerShape(4.dp))
                     .padding(12.dp)
             ) {
-                Text(errorMessage!!, color = Color(0xFFFCA5A5), fontSize = 13.sp)
+                Text(text = errorMessage!!, color = ErrorRed, fontSize = 12.sp, lineHeight = 16.sp)
             }
             Spacer(modifier = Modifier.height(16.dp))
         }
 
-        // Submit Button
+        // Submit Button (Rectangular, Academic style)
         Button(
             onClick = {
-                // 100% field validation matching contract
+                val cleanId = learnerId.trim()
+                if (cleanId.isBlank() || cleanId.length > 100) {
+                    errorMessage = "Learner ID must be between 1 and 100 characters."
+                    return@Button
+                }
                 val cleanRegion = region.trim()
-                if (cleanRegion.isBlank()) {
-                    errorMessage = "Region cannot be empty (1-200 characters)."
+                if (cleanRegion.isBlank() || cleanRegion.length > 200) {
+                    errorMessage = "Region must be between 1 and 200 characters."
                     return@Button
                 }
                 if (selectedInterests.isEmpty()) {
-                    errorMessage = "Please select at least one interest."
+                    errorMessage = "Please select at least one interest tag."
                     return@Button
                 }
                 if (selectedWeakAreas.isEmpty()) {
-                    errorMessage = "Please select at least one skill to hone."
+                    errorMessage = "Please select at least one weakness focus."
                     return@Button
                 }
 
                 errorMessage = null
                 isLoading = true
 
-                val learnerId = "android_" + System.currentTimeMillis().toString(36)
                 val profile = LearnerProfile(
-                    learnerId = learnerId,
+                    learnerId = cleanId,
                     language = "spanish",
                     level = selectedLevel,
                     region = cleanRegion,
                     purpose = selectedPurpose,
                     interests = selectedInterests.toList(),
                     weakAreas = selectedWeakAreas.toList(),
-                    nativeLanguage = nativeLanguage
+                    nativeLanguage = "English"
                 )
 
                 scope.launch {
                     val success = onProfileCreated(profile)
                     isLoading = false
                     if (!success) {
-                        errorMessage = "Couldn't create your profile. Check your connection and try again."
+                        errorMessage = "Failed to register profile on live backend (novara-api-dnhc.onrender.com). Check internet connection or retry."
                     }
-                    // On success, the caller navigates away - no further
-                    // state change needed here.
                 }
             },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(52.dp),
-            shape = RoundedCornerShape(26.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = AccentEmerald)
+                .height(48.dp),
+            shape = RoundedCornerShape(4.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = AcademicNavy),
+            enabled = !isLoading
         ) {
             if (isLoading) {
-                CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Color.White)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text("Registering on Live Backend...", fontSize = 13.sp, color = Color.White)
+                }
             } else {
-                Text("Create Profile & Start", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text("Register Profile & Initialize (POST /profile)", fontSize = 13.sp, fontWeight = FontWeight.Bold)
             }
         }
+
+        Spacer(modifier = Modifier.height(32.dp))
     }
 }

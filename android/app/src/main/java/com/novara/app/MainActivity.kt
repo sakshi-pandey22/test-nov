@@ -15,7 +15,7 @@ import com.novara.app.data.ProfileStore
 import com.novara.app.model.ScenarioResponse
 import com.novara.app.network.NovaraRepository
 import com.novara.app.ui.*
-import com.novara.app.ui.theme.BgPrimary
+import com.novara.app.ui.theme.BgIvory
 import com.novara.app.ui.theme.NovaraTheme
 
 class MainActivity : ComponentActivity() {
@@ -31,32 +31,33 @@ class MainActivity : ComponentActivity() {
                 Surface(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(BgPrimary)
+                        .background(BgIvory)
                 ) {
                     val navController = rememberNavController()
-
-                    // Task 3: If profile is saved on disk, resume into scenario; else intake
-                    val startDestination = remember {
-                        if (profileStore.hasValidProfile()) "scenario" else "intake"
-                    }
 
                     var activeScenario by remember { mutableStateOf<ScenarioResponse?>(null) }
                     var currentProfile by remember { mutableStateOf(profileStore.loadProfile()) }
 
-                    NavHost(navController = navController, startDestination = startDestination) {
-                        // 1. Intake Screen (Task 2)
+                    NavHost(navController = navController, startDestination = "splash") {
+                        // 0. Splash Loading Screen (1.2s loader)
+                        composable("splash") {
+                            SplashScreen(
+                                onSplashFinished = {
+                                    val destination = if (profileStore.hasValidProfile()) "scenario" else "intake"
+                                    navController.navigate(destination) {
+                                        popUpTo("splash") { inclusive = true }
+                                    }
+                                }
+                            )
+                        }
+
+                        // 1. Intake / Registration Screen (Task 2)
                         composable("intake") {
                             IntakeScreen(
                                 onProfileCreated = { newProfile ->
-                                    // Save locally (Task 3)
                                     profileStore.saveProfile(newProfile)
                                     currentProfile = newProfile
 
-                                    // Call backend (Task 7) - only navigate
-                                    // onward if it actually succeeded;
-                                    // IntakeScreen shows the failure and
-                                    // keeps the learner on this screen
-                                    // otherwise.
                                     val result = repository.createProfile(newProfile)
                                     if (result.isSuccess) {
                                         navController.navigate("scenario") {
@@ -76,7 +77,7 @@ class MainActivity : ComponentActivity() {
                         // 2. Scenario Screen (Task 4)
                         composable("scenario") {
                             val profile = currentProfile ?: profileStore.loadProfile()
-                            val learnerId = profile?.learnerId ?: "learner_demo"
+                            val learnerId = profile?.learnerId ?: "sakshi_test_1"
                             val purpose = profile?.purpose ?: "trip"
 
                             ScenarioScreen(
@@ -96,7 +97,7 @@ class MainActivity : ComponentActivity() {
                         // 3. Conversation Screen (Task 5)
                         composable("conversation") {
                             val profile = currentProfile ?: profileStore.loadProfile()
-                            val learnerId = profile?.learnerId ?: "learner_demo"
+                            val learnerId = profile?.learnerId ?: "sakshi_test_1"
                             val sc = activeScenario ?: com.novara.app.data.MockDataProvider.getScenarioForPurpose(profile?.purpose ?: "trip")
 
                             ConversationScreen(
@@ -115,7 +116,7 @@ class MainActivity : ComponentActivity() {
                         // 4. Readiness Screen (Task 6)
                         composable("readiness") {
                             val profile = currentProfile ?: profileStore.loadProfile()
-                            val learnerId = profile?.learnerId ?: "learner_demo"
+                            val learnerId = profile?.learnerId ?: "sakshi_test_1"
 
                             ReadinessScreen(
                                 learnerId = learnerId,

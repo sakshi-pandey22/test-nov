@@ -5,15 +5,14 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -22,11 +21,6 @@ import com.novara.app.network.NovaraRepository
 import com.novara.app.ui.theme.*
 import kotlinx.coroutines.launch
 
-/**
- * Task 4: Situational Scenario Screen
- * Renders scenario for all 4 purposes (Trip, Casual, Exam, Relocation).
- * Supports Mock <-> Real swap.
- */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ScenarioScreen(
@@ -36,13 +30,19 @@ fun ScenarioScreen(
     onBeginConversation: (ScenarioResponse) -> Unit,
     onEditProfile: () -> Unit
 ) {
-    var selectedPurpose by remember { mutableStateOf(initialPurpose) }
+    var selectedPurpose by remember { mutableStateOf(if (initialPurpose == "casual") "casual" else "trip") }
     var scenario by remember { mutableStateOf<ScenarioResponse?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
-    var isMockMode by remember { mutableStateOf(repository.isMockMode) }
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
+
+    // Standalone /repair diagnostic state
+    var showRepairTester by remember { mutableStateOf(false) }
+    var testUtterance by remember { mutableStateOf("quiero para llevo") }
+    var expectedPattern by remember { mutableStateOf("quiero para llevar") }
+    var repairTestResult by remember { mutableStateOf<String?>(null) }
+    var isTestingRepair by remember { mutableStateOf(false) }
 
     fun loadScenario(purpose: String) {
         isLoading = true
@@ -52,238 +52,329 @@ fun ScenarioScreen(
             result.onSuccess {
                 scenario = it
             }.onFailure {
-                errorMessage = it.message ?: "Couldn't reach the backend."
+                errorMessage = it.message ?: "Failed to fetch scenario from backend."
             }
             isLoading = false
         }
     }
 
-    LaunchedEffect(selectedPurpose, isMockMode) {
+    LaunchedEffect(selectedPurpose) {
         loadScenario(selectedPurpose)
     }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(BgPrimary)
-            .padding(horizontal = 20.dp, vertical = 24.dp)
+            .background(BgIvory)
+            .padding(horizontal = 24.dp, vertical = 20.dp)
             .verticalScroll(scrollState)
     ) {
-        // Top Bar
+        // Navigation Bar
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            TextButton(onClick = onEditProfile) {
-                Text("← Edit Profile", color = TextSecondary, fontSize = 13.sp)
+            TextButton(
+                onClick = onEditProfile,
+                contentPadding = PaddingValues(0.dp)
+            ) {
+                Text("← Edit Registration", color = AcademicNavy, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             }
 
-            // Mock vs Real Toggle (Task 7)
             Box(
                 modifier = Modifier
-                    .clip(CircleShape)
-                    .background(if (isMockMode) AccentEmerald.copy(alpha = 0.2f) else BgSurface)
-                    .border(1.dp, if (isMockMode) AccentEmerald else BorderColor, CircleShape)
-                    .clickable {
-                        isMockMode = !isMockMode
-                        repository.isMockMode = isMockMode
-                    }
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                    .border(1.dp, AcademicSage, RoundedCornerShape(4.dp))
+                    .background(BgSurface)
+                    .padding(horizontal = 10.dp, vertical = 4.dp)
             ) {
-                Text(
-                    text = if (isMockMode) "⚡ MOCK MODE" else "🟢 LIVE BACKEND",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = if (isMockMode) AccentEmerald else TextSecondary
-                )
+                Text("🟢 LIVE BACKEND ACTIVE", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = AcademicSage)
             }
         }
 
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Text(
+            text = "NOVARA / ADAPTIVE SCENARIOS",
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = AcademicNavy,
+            letterSpacing = 1.5.sp
+        )
+
+        Spacer(modifier = Modifier.height(2.dp))
+
+        Text(
+            text = "Situational Scenario",
+            fontSize = 24.sp,
+            fontFamily = FontFamily.Serif,
+            fontWeight = FontWeight.Bold,
+            color = TextPrimary
+        )
+
+        Text(
+            text = "GET /scenario?learner_id=$learnerId · Scored by Adaptive Engine",
+            fontSize = 12.sp,
+            color = TextSecondary
+        )
+
         Spacer(modifier = Modifier.height(16.dp))
 
-        // 4 Purpose Selector (Task 4: Check 4 purposes)
-        Text("TASK 4: PURPOSE SELECTOR", fontSize = 11.sp, color = TextMuted, letterSpacing = 1.sp)
-        Spacer(modifier = Modifier.height(8.dp))
+        // Purpose Selector (Live Backend Scope: Trip & Casual)
+        Text(
+            text = "SELECT IMMERSION PURPOSE",
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = AcademicNavy,
+            letterSpacing = 1.sp
+        )
+        Spacer(modifier = Modifier.height(6.dp))
         Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
-            listOf("trip" to "✈️ Trip", "casual" to "💬 Casual", "exam" to "🎓 Exam", "relocation" to "🏡 Move").forEach { (purp, label) ->
+            listOf("trip" to "✈️ Trip Immersion", "casual" to "💬 Casual Immersion").forEach { (purp, label) ->
                 val isSelected = selectedPurpose == purp
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(if (isSelected) AccentEmerald.copy(alpha = 0.2f) else BgSurface)
-                        .border(1.dp, if (isSelected) AccentEmerald else BorderColor, RoundedCornerShape(8.dp))
+                        .border(
+                            width = if (isSelected) 1.5.dp else 1.dp,
+                            color = if (isSelected) AcademicNavy else BgCardBorder,
+                            shape = RoundedCornerShape(4.dp)
+                        )
+                        .background(if (isSelected) BgSubtle else BgSurface)
                         .clickable { selectedPurpose = purp }
-                        .padding(vertical = 8.dp),
+                        .padding(vertical = 10.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        label,
-                        fontSize = 11.sp,
+                        text = label,
+                        fontSize = 12.sp,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                        color = if (isSelected) AccentEmerald else TextSecondary
+                        color = if (isSelected) AcademicNavy else TextSecondary
                     )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        if (isLoading) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(4.dp),
+                colors = CardDefaults.cardColors(containerColor = BgSurface),
+                border = androidx.compose.foundation.BorderStroke(1.dp, BgCardBorder)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = AcademicNavy, strokeWidth = 2.dp)
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text("Querying GET /scenario...", fontSize = 12.sp, color = TextSecondary)
+                    }
+                }
+            }
+        } else if (scenario != null) {
+            val sc = scenario!!
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(4.dp),
+                colors = CardDefaults.cardColors(containerColor = BgSurface),
+                border = androidx.compose.foundation.BorderStroke(1.dp, BgCardBorder)
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "SCENARIO ID: ${sc.scenarioId}",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = AcademicNavy,
+                                letterSpacing = 1.sp
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = sc.title,
+                                fontSize = 18.sp,
+                                fontFamily = FontFamily.Serif,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = "Setting: ${sc.setting}",
+                        fontSize = 13.sp,
+                        color = TextSecondary
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Situation Tags
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        sc.situationTags.forEach { tag ->
+                            Box(
+                                modifier = Modifier
+                                    .background(BgTag, RoundedCornerShape(2.dp))
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text("#$tag", fontSize = 11.sp, color = TextSecondary)
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    HorizontalDivider(color = BgCardBorder, thickness = 1.dp)
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = "NATIVE SPEAKER OPENING DIALOGUE:",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = AcademicNavy,
+                        letterSpacing = 1.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(BgSubtle)
+                            .border(1.dp, BgCardBorder, RoundedCornerShape(4.dp))
+                            .padding(14.dp)
+                    ) {
+                        Column {
+                            Text(
+                                text = "🇪🇸 \"${sc.openingLine}\"",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextPrimary
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    Button(
+                        onClick = { onBeginConversation(sc) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        shape = RoundedCornerShape(4.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = AcademicNavy)
+                    ) {
+                        Text("Begin Practice Conversation (POST /conversation) →", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        if (isLoading) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(200.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator(color = AccentEmerald)
-            }
-        } else if (errorMessage != null && scenario == null) {
-            // Only shown when there's no prior successful scenario to fall
-            // back to - a retry after an earlier success keeps showing the
-            // last-known-good scenario rather than replacing it with an
-            // error box (see the explicit "preserve existing successful
-            // data" requirement for this fix).
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = BgSurface)
-            ) {
-                Column(modifier = Modifier.padding(20.dp)) {
-                    Text("Couldn't load the scenario", fontWeight = FontWeight.Bold, color = TextPrimary)
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(errorMessage ?: "", fontSize = 13.sp, color = TextSecondary)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(
-                        onClick = { loadScenario(selectedPurpose) },
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentEmerald)
-                    ) {
-                        Text("Retry")
-                    }
-                }
-            }
-        } else if (scenario != null) {
-            val sc = scenario!!
-
-            if (errorMessage != null) {
-                // A retry (e.g. switching purpose) failed, but we still have
-                // the last successful scenario to show - surface the failure
-                // without discarding that data.
-                Card(
+        // Diagnostic Card for Endpoint #4: POST /repair
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(4.dp),
+            colors = CardDefaults.cardColors(containerColor = BgSurface),
+            border = androidx.compose.foundation.BorderStroke(1.dp, BgCardBorder)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = BgElevated)
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("⚠ Couldn't refresh: ${errorMessage}", fontSize = 12.sp, color = TextSecondary)
-                        TextButton(onClick = { loadScenario(selectedPurpose) }) {
-                            Text("Retry", color = AccentEmerald, fontSize = 12.sp)
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-            }
-
-            // Scenario Title & Setting Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = BgSurface)
-            ) {
-                Column(modifier = Modifier.padding(20.dp)) {
-                    Text(
-                        text = sc.title,
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Text(
-                        text = "📍 ${sc.setting}",
-                        fontSize = 14.sp,
-                        color = TextSecondary
-                    )
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // Situation Tags
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        sc.situationTags.forEach { tag ->
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(BgElevated)
-                                    .border(1.dp, BorderColor, RoundedCornerShape(6.dp))
-                                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                            ) {
-                                Text("#$tag", fontSize = 11.sp, color = AccentCyan)
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Opening Line Card with Audio Indicator
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = BgElevated)
-            ) {
-                Column(modifier = Modifier.padding(20.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    Column {
                         Text(
-                            text = "AI PARTNER OPENING LINE",
+                            text = "ENDPOINT 4: POST /repair TESTER",
                             fontSize = 11.sp,
-                            color = AccentGold,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            color = AcademicAmber,
+                            letterSpacing = 1.sp
                         )
-                        Text("🔊 Audio Ready", fontSize = 11.sp, color = TextMuted)
+                        Text(
+                            text = "Verify rule-based Repair Engine error classification",
+                            fontSize = 11.sp,
+                            color = TextMuted
+                        )
                     }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Text(
-                        text = "\"${sc.openingLine}\"",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = TextPrimary,
-                        lineHeight = 24.sp
-                    )
+                    TextButton(onClick = { showRepairTester = !showRepairTester }) {
+                        Text(if (showRepairTester) "Hide" else "Open", fontSize = 12.sp, color = AcademicNavy)
+                    }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(30.dp))
-
-            // Action: Begin Conversation
-            Button(
-                onClick = { onBeginConversation(sc) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-                shape = RoundedCornerShape(26.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = AccentEmerald)
-            ) {
-                Text("Begin Conversation →", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                if (showRepairTester) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = testUtterance,
+                        onValueChange = { testUtterance = it },
+                        label = { Text("learner_utterance (e.g. 'quiero para llevo')") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(4.dp)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = expectedPattern,
+                        onValueChange = { expectedPattern = it },
+                        label = { Text("expected_pattern (e.g. 'quiero para llevar')") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(4.dp)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Button(
+                        onClick = {
+                            isTestingRepair = true
+                            repairTestResult = null
+                            scope.launch {
+                                val res = repository.testRepair(testUtterance, expectedPattern)
+                                isTestingRepair = false
+                                repairTestResult = res.fold(
+                                    onSuccess = { "CLASSIFIED: Error='${it.errorType}' | Strategy='${it.strategy}' | Repair='${it.repairText}'" },
+                                    onFailure = { "Error: ${it.message}" }
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(4.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = AcademicAmber),
+                        enabled = !isTestingRepair
+                    ) {
+                        Text(if (isTestingRepair) "Evaluating..." else "Send POST /repair Test", fontSize = 12.sp)
+                    }
+                    if (repairTestResult != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(BgSubtle)
+                                .border(1.dp, BgCardBorder, RoundedCornerShape(4.dp))
+                                .padding(10.dp)
+                        ) {
+                            Text(repairTestResult!!, fontSize = 12.sp, color = AcademicNavy, fontWeight = FontWeight.Medium)
+                        }
+                    }
+                }
             }
         }
+
+        Spacer(modifier = Modifier.height(32.dp))
     }
 }

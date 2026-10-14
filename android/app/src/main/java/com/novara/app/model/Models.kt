@@ -83,7 +83,19 @@ data class ConversationResponse(
     @SerializedName("pace_preference") val pacePreference: Double? = null
 )
 
-// ─── 4. GET /readiness ──────────────────────────────────────────────
+// ─── 4. POST /repair (Standalone Repair Diagnostic) ─────────────────
+data class StandaloneRepairRequest(
+    @SerializedName("learner_utterance") val learnerUtterance: String,
+    @SerializedName("expected_pattern") val expectedPattern: String
+)
+
+data class StandaloneRepairResponse(
+    @SerializedName("error_type") val errorType: String,
+    @SerializedName("strategy") val strategy: String,
+    @SerializedName("repair_text") val repairText: String
+)
+
+// ─── 5. GET /readiness ──────────────────────────────────────────────
 data class ReadinessResponse(
     @SerializedName("learner_id") val learnerId: String,
     @SerializedName("aggregate_score") val aggregateScore: Double,

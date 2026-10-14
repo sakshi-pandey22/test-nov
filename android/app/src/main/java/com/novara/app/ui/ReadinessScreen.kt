@@ -1,21 +1,18 @@
 package com.novara.app.ui
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -25,14 +22,6 @@ import com.novara.app.network.NovaraRepository
 import com.novara.app.ui.theme.*
 import kotlinx.coroutines.launch
 
-/**
- * Task 6: Readiness Dashboard
- * Features:
- * - Aggregate score gauge
- * - Dimension breakdown bars
- * - 3 sample payload toggles (High, Mid, Low)
- * - Zero clipping layout
- */
 @Composable
 fun ReadinessScreen(
     learnerId: String,
@@ -56,11 +45,9 @@ fun ReadinessScreen(
                 result.onSuccess {
                     readinessData = it
                 }.onFailure {
-                    errorMessage = it.message ?: "Couldn't reach the backend."
+                    errorMessage = it.message ?: "Failed to fetch readiness from backend."
                 }
             } else {
-                // Explicit sample buttons - never claimed to be live, so no
-                // error/fallback semantics apply here.
                 readinessData = MockDataProvider.readinessPayloads[sampleKey]
             }
             isLoading = false
@@ -74,53 +61,100 @@ fun ReadinessScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(BgPrimary)
-            .padding(horizontal = 20.dp, vertical = 20.dp)
+            .background(BgIvory)
+            .padding(horizontal = 24.dp, vertical = 20.dp)
             .verticalScroll(scrollState)
     ) {
-        // Header
+        // Navigation Bar
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            TextButton(onClick = onNavigateBack) {
-                Text("← Chat", color = TextSecondary, fontSize = 13.sp)
+            TextButton(
+                onClick = onNavigateBack,
+                contentPadding = PaddingValues(0.dp)
+            ) {
+                Text("← Back to Dialogue", color = AcademicNavy, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             }
-            Text("READINESS DASHBOARD", color = AccentEmerald, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+
+            Box(
+                modifier = Modifier
+                    .border(1.dp, AcademicNavy, RoundedCornerShape(4.dp))
+                    .background(BgSurface)
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text("LEARNER: $learnerId", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = AcademicNavy)
+            }
         }
 
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
-        // Task 6: 3 Sample Payloads Evaluator Switcher
-        Text("TASK 6: SAMPLE PAYLOAD SWITCHER", fontSize = 11.sp, color = TextMuted, letterSpacing = 1.sp)
+        Text(
+            text = "NOVARA / COMPETENCY METRICS",
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = AcademicNavy,
+            letterSpacing = 1.5.sp
+        )
+
+        Spacer(modifier = Modifier.height(2.dp))
+
+        Text(
+            text = "Country Readiness Assessment",
+            fontSize = 24.sp,
+            fontFamily = FontFamily.Serif,
+            fontWeight = FontWeight.Bold,
+            color = TextPrimary
+        )
+
+        Text(
+            text = "GET /readiness?learner_id=$learnerId · Weighted competency scoring",
+            fontSize = 12.sp,
+            color = TextSecondary
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Evaluator Switcher Bar (Task 6 Presets)
+        Text(
+            text = "DATA SOURCE EVALUATOR",
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            color = AcademicNavy,
+            letterSpacing = 1.sp
+        )
         Spacer(modifier = Modifier.height(6.dp))
         Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
             listOf(
-                "live" to "🟢 Live",
-                "high" to "🏆 High 88%",
-                "mid" to "⚖️ Mid 62%",
-                "low" to "📉 Low 34%"
+                "live" to "🟢 Live ($learnerId)",
+                "high" to "High (88%)",
+                "mid" to "Mid (62%)",
+                "low" to "Low (34%)"
             ).forEach { (key, label) ->
                 val isSelected = selectedSample == key
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(if (isSelected) AccentEmerald.copy(alpha = 0.2f) else BgSurface)
-                        .border(1.dp, if (isSelected) AccentEmerald else BorderColor, RoundedCornerShape(8.dp))
+                        .border(
+                            width = if (isSelected) 1.5.dp else 1.dp,
+                            color = if (isSelected) AcademicNavy else BgCardBorder,
+                            shape = RoundedCornerShape(4.dp)
+                        )
+                        .background(if (isSelected) BgSubtle else BgSurface)
                         .clickable { selectedSample = key }
                         .padding(vertical = 8.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        label,
-                        fontSize = 11.sp,
+                        text = label,
+                        fontSize = 10.sp,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                        color = if (isSelected) AccentEmerald else TextSecondary
+                        color = if (isSelected) AcademicNavy else TextSecondary,
+                        maxLines = 1
                     )
                 }
             }
@@ -129,151 +163,178 @@ fun ReadinessScreen(
         Spacer(modifier = Modifier.height(20.dp))
 
         if (isLoading) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(200.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator(color = AccentEmerald)
-            }
-        } else if (errorMessage != null && readinessData == null) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = BgSurface)
+                shape = RoundedCornerShape(4.dp),
+                colors = CardDefaults.cardColors(containerColor = BgSurface),
+                border = androidx.compose.foundation.BorderStroke(1.dp, BgCardBorder)
             ) {
-                Column(modifier = Modifier.padding(20.dp)) {
-                    Text("Couldn't load readiness", fontWeight = FontWeight.Bold, color = TextPrimary)
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(errorMessage ?: "", fontSize = 13.sp, color = TextSecondary)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(
-                        onClick = { loadData(selectedSample) },
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentEmerald)
-                    ) {
-                        Text("Retry")
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = AcademicNavy, strokeWidth = 2.dp)
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text("Computing readiness scores...", fontSize = 12.sp, color = TextSecondary)
                     }
                 }
             }
         } else if (readinessData != null) {
-            val rd = readinessData!!
-            val score = rd.aggregateScore
-            val animatedScore by animateFloatAsState(
-                targetValue = score.toFloat(),
-                animationSpec = tween(durationMillis = 800),
-                label = "score"
-            )
-
-            val scoreColor = when {
-                score >= 0.70 -> AccentEmerald
-                score >= 0.40 -> AccentGold
-                else -> ErrorColor
-            }
+            val data = readinessData!!
+            val scorePct = (data.aggregateScore * 100).toInt()
 
             // Aggregate Score Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = BgSurface)
+                shape = RoundedCornerShape(4.dp),
+                colors = CardDefaults.cardColors(containerColor = BgSurface),
+                border = androidx.compose.foundation.BorderStroke(1.dp, BgCardBorder)
             ) {
-                Column(
-                    modifier = Modifier.padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text("COMPOSITE READINESS INDEX", fontSize = 11.sp, color = TextMuted, letterSpacing = 1.sp)
-                    Spacer(modifier = Modifier.height(12.dp))
-
+                Column(modifier = Modifier.padding(20.dp)) {
                     Text(
-                        text = "${(animatedScore * 100).toInt()}%",
-                        fontSize = 48.sp,
+                        text = "AGGREGATE READINESS INDEX",
+                        fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
-                        color = scoreColor
+                        color = AcademicNavy,
+                        letterSpacing = 1.sp
                     )
 
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
-                    Text(
-                        text = when {
-                            score >= 0.80 -> "Proficient & Situational Ready"
-                            score >= 0.65 -> "Strong Conversationalist"
-                            score >= 0.45 -> "Developing Fluency"
-                            else -> "Needs Focused Practice"
-                        },
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = TextPrimary
+                    Row(
+                        verticalAlignment = Alignment.Bottom,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(verticalAlignment = Alignment.Bottom) {
+                            Text(
+                                text = "$scorePct%",
+                                fontSize = 42.sp,
+                                fontFamily = FontFamily.Serif,
+                                fontWeight = FontWeight.Bold,
+                                color = AcademicNavy
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "(${data.purpose.uppercase()} READINESS)",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = AcademicSage,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                        }
+
+                        Text(
+                            text = "Score: ${String.format("%.2f", data.aggregateScore)} / 1.00",
+                            fontSize = 11.sp,
+                            color = TextMuted,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    LinearProgressIndicator(
+                        progress = { data.aggregateScore.toFloat().coerceIn(0f, 1f) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(8.dp),
+                        color = AcademicNavy,
+                        trackColor = BgSubtle
                     )
 
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     Text(
-                        text = "Purpose: ${rd.purpose.replaceFirstChar { it.uppercase() }}",
-                        fontSize = 12.sp,
-                        color = AccentCyan
+                        text = "Formula: Readiness = Σ (weight_i × competency_score_i). Evaluates real communication beyond memorized vocabulary.",
+                        fontSize = 11.sp,
+                        color = TextSecondary,
+                        lineHeight = 15.sp
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // Dimension Breakdown Bars
-            Text("DIMENSION BREAKDOWN", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextMuted, letterSpacing = 1.sp)
-            Spacer(modifier = Modifier.height(10.dp))
+            // Competency Dimensions Breakdown
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(4.dp),
+                colors = CardDefaults.cardColors(containerColor = BgSurface),
+                border = androidx.compose.foundation.BorderStroke(1.dp, BgCardBorder)
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Text(
+                        text = "FOUR-DIMENSIONAL BREAKDOWN",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = AcademicNavy,
+                        letterSpacing = 1.sp
+                    )
 
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                rd.breakdown.forEach { (dimKey, dimVal) ->
-                    val dimLabel = when (dimKey) {
-                        "language_accuracy" -> "Language Accuracy"
-                        "repair_success_rate" -> "Repair Success"
-                        "register_appropriateness" -> "Register & Tone"
-                        "transfer_success" -> "Situational Transfer"
-                        else -> dimKey.replace('_', ' ').replaceFirstChar { it.uppercase() }
-                    }
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = BgSurface)
-                    ) {
-                        Column(modifier = Modifier.padding(14.dp)) {
+                    val dimensions = listOf(
+                        Triple("language_accuracy", "1. Language Accuracy", "Phonological & grammatical precision"),
+                        Triple("repair_success_rate", "2. Communication & Repair Success", "Resilience following conversational breakdown"),
+                        Triple("register_appropriateness", "3. Register Appropriateness", "Formal/informal (tú vs. usted) distinction"),
+                        Triple("transfer_success", "4. Situational Transfer", "Breadth of situations navigated successfully")
+                    )
+
+                    dimensions.forEachIndexed { index, (key, title, subtitle) ->
+                        val dimScore = data.breakdown[key] ?: 0.5
+                        val pct = (dimScore * 100).toInt()
+
+                        Column {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(dimLabel, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary)
-                                Text("${(dimVal * 100).toInt()}%", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = AccentEmerald)
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(title, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                    Text(subtitle, fontSize = 10.sp, color = TextMuted)
+                                }
+                                Text("$pct%", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = AcademicNavy)
                             }
 
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(6.dp))
 
                             LinearProgressIndicator(
-                                progress = { dimVal.toFloat() },
+                                progress = { dimScore.toFloat().coerceIn(0f, 1f) },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(8.dp)
-                                    .clip(RoundedCornerShape(4.dp)),
-                                color = scoreColor,
-                                trackColor = BgElevated
+                                    .height(6.dp),
+                                color = AcademicSage,
+                                trackColor = BgSubtle
                             )
+                        }
+
+                        if (index < dimensions.size - 1) {
+                            Spacer(modifier = Modifier.height(14.dp))
+                            HorizontalDivider(color = BgCardBorder, thickness = 0.5.dp)
+                            Spacer(modifier = Modifier.height(14.dp))
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-            // Action: Start Next Scenario
             Button(
                 onClick = onStartNewScenario,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(50.dp),
-                shape = RoundedCornerShape(25.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = AccentEmerald)
+                    .height(48.dp),
+                shape = RoundedCornerShape(4.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = AcademicNavy)
             ) {
-                Text("Next Scenario ➔", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Text("Practice Another Scenario (Loop-back) →", fontSize = 13.sp, fontWeight = FontWeight.Bold)
             }
         }
+
+        Spacer(modifier = Modifier.height(32.dp))
     }
 }

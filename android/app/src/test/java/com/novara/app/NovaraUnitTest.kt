@@ -62,6 +62,32 @@ class NovaraUnitTest {
         assertTrue(json.contains("\"purpose\":\"casual\""))
     }
 
+    @Test
+    fun testSakshiTest1ProfileContract() {
+        val profile = LearnerProfile(
+            learnerId = "sakshi_test_1",
+            language = "spanish",
+            level = "B1",
+            region = "Madrid",
+            purpose = "trip",
+            interests = listOf("food", "travel"),
+            weakAreas = listOf("listening")
+        )
+        assertTrue(ProfileStore.isSchemaValid(profile))
+        assertEquals("sakshi_test_1", profile.learnerId)
+    }
+
+    @Test
+    fun testStandaloneRepairSerialization() {
+        val req = com.novara.app.model.StandaloneRepairRequest(
+            learnerUtterance = "quiero para llevo",
+            expectedPattern = "quiero para llevar"
+        )
+        val json = gson.toJson(req)
+        assertTrue(json.contains("\"learner_utterance\":\"quiero para llevo\""))
+        assertTrue(json.contains("\"expected_pattern\":\"quiero para llevar\""))
+    }
+
     // ─── Task 4: Situational Scenario 4 Purposes ────────────────────
     @Test
     fun testFourPurposesRenderCleanly() {
