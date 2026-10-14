@@ -17,6 +17,9 @@ jobs:
       run:
         working-directory: ./android
 
+    permissions:
+      contents: write
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -46,3 +49,12 @@ jobs:
           name: novara-app-debug-apk
           path: android/app/build/outputs/apk/debug/*.apk
           retention-days: 14
+
+      - name: Create or Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main'
+        with:
+          tag_name: latest
+          name: "Novara Android App APK"
+          body: "Direct download of the latest debug APK for Android testing."
+          files: android/app/build/outputs/apk/debug/*.apk
