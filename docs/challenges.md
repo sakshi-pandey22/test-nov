@@ -180,3 +180,17 @@ Raised during review prep: a brand-new (A1) learner can go straight from reading
 4. **No changes needed** to Personalization or Readiness Engines — both already treat "turns" and "repairs" generically regardless of which conversation mode produced them.
 
 Likely needs one new field (`scenario_type: "guided" | "free"`) on the scenario object and a small Dashboard/routing change — everything else is additive to existing modules, not a rewrite.
+
+### [2026-10-14] Android Kotlin Architecture & Headless CI Build (Sakshi)
+
+**Problem**: Building a production-grade Kotlin + Jetpack Compose application with strict API contract adherence without requiring local Android Studio installation on the development machine.
+
+**Cause**: Local hardware/tooling constraints where running full Android Studio and emulators locally was unnecessary given headless CI/CD capabilities.
+
+**Fix**:
+1. **Headless Compilation & CI Artifacts**: Configured `.github/workflows/android-ci.yml` with Temurin JDK 21 and Gradle wrapper to automatically compile `assembleDebug`, run unit tests (`testDebugUnitTest`), and upload the resulting `app-debug.apk` directly as a downloadable GitHub Action artifact (14-day retention).
+2. **Cold-Start Resiliency (Task 7)**: Configured OkHttp interceptors with 60-second connect/read/write timeouts to absorb Render's 30–50s free-tier wake-up latency, pairing it with a visual "⚡ MOCK MODE / 🟢 LIVE BACKEND" instant toggle in the UI so the app never freezes or crashes when testing offline or during cold boots.
+3. **Inline Repair UX (Task 5)**: Structured `ConversationScreen.kt` using a strongly-typed `MessageRole` (`USER`, `ASSISTANT`, `REPAIR`) inside a `LazyColumn`. Repairs are rendered in dedicated amber-accented cards showing the classified error type (`lexical`, `grammar`, `register`, `comprehension`), strategy badge (`clarify`, `rephrase`, `hint`), native Spanish correction, and English contextual guidance.
+4. **Zero-Clipping Readiness Dashboard (Task 6)**: Implemented canvas/progress bar visualizations with purpose-specific weight displays and three 1-tap evaluation presets (High, Mid, Low) ensuring robust presentation across diverse phone viewport aspect ratios without text truncation.
+
+**Result**: Complete, reproducible Kotlin Android client verified against frozen backend contract (`NovaraUnitTest.kt` 100% passing), providing standalone APK generation for physical device testing and demonstration.
